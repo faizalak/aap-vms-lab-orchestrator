@@ -1,0 +1,39 @@
+---
+- name: Rollback VM from latest snapshot
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    vm_namespace: "{{ vm_namespace | default('vms-lab') }}"
+    vm_name: "{{ vm_name | default('rhel9-lab-01') }}"
+    snapshot_name: "{{ snapshot_name }}"
+  tasks:
+    - name: Stop VM before restore
+      redhat.openshift_virtualization.kubevirt_vm:
+        name: "{{ vm_name }}"
+        namespace: "{{ vm_namespace }}"
+        state: stopped
+        wait: true
+
+    - name: Restore from snapshot
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: snapshot.kubevirt.io/v1alpha1
+          kind: VirtualMachineRestore
+          metadata:
+            generateName: "restore-{{ vm_name }}-"
+            namespace: "{{ vm_namespace }}"
+          spec:
+            target:
+              apiGroup: kubevirt.io
+              kind: VirtualMachine
+              name: "{{ vm_name }}"
+            virtualMachineSnapshotName: "{{ snapshot_name }}"
+
+    - name: Start VM after restore
+      redhat.openshift_virtualization.kubevirt_vm:
+        name: "{{ vm_name }}"
+        namespace: "{{ vm_namespace }}"
+        state: running
+        wait: true
