@@ -1,0 +1,30 @@
+---
+- name: Snapshot VMs before maintenance
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    vm_namespace: "{{ vm_namespace | default('vms-lab') }}"
+    vm_names: "{{ vm_names | default(['rhel9-lab-01']) }}"
+  tasks:
+    - name: Create snapshot per VM
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: snapshot.kubevirt.io/v1alpha1
+          kind: VirtualMachineSnapshot
+          metadata:
+            name: "pre-patch-{{ item }}-{{ ansible_date_time.epoch }}"
+            namespace: "{{ vm_namespace }}"
+          spec:
+            source:
+              apiGroup: kubevirt.io
+              kind: VirtualMachine
+              name: "{{ item }}"
+      loop: "{{ vm_names }}"
+      register: snap_results
+
+    - name: Report snapshot names
+      ansible.builtin.set_stats:
+        data:
+          snapshots_created: "{{ snap_results.results | map(attribute='result.metadata.name') | list }}"
